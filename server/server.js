@@ -384,11 +384,23 @@ app.options("*", cors(corsOptions));
 // explicitly support OPTIONS for login (preflight)
 app.options('/api/auth/login', cors(corsOptions), (req, res) => res.sendStatus(204));
 
-// Request logging for diagnostics
+// Keep request logging focused on Twilio and voice pipeline traffic.
 app.use((req, res, next) => {
-  console.log(`[REQ] ${req.method} ${req.originalUrl} - origin: ${req.headers.origin || 'none'} - ip: ${req.ip}`);
+  const url = req.originalUrl || req.url || '';
+  const shouldLog =
+    url.includes('/api/twilio') ||
+    url.includes('/api/call') ||
+    url.includes('/voice-stream') ||
+    url.includes('/browser-voice-stream');
+
+  if (!shouldLog) {
+    next();
+    return;
+  }
+
+  console.log(`[REQ] ${req.method} ${url} - origin: ${req.headers.origin || 'none'} - ip: ${req.ip}`);
   res.on('finish', () => {
-    console.log(`[RESP] ${req.method} ${req.originalUrl} -> ${res.statusCode}`);
+    console.log(`[RESP] ${req.method} ${url} -> ${res.statusCode}`);
   });
   next();
 });
