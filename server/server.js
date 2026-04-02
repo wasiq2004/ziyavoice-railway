@@ -85,7 +85,9 @@ server.on('upgrade', (req, socket, head) => {
   const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
 
   // Only process Twilio media stream upgrade requests
-  if (requestUrl.pathname !== '/api/call') {
+  // Accept both /api/call and /api/call/.websocket (Twilio may append .websocket)
+  const isValidCallPath = requestUrl.pathname === '/api/call' || requestUrl.pathname === '/api/call/.websocket';
+  if (!isValidCallPath) {
     console.log('⚠️  Non-call upgrade request ignored:', {
       pathname: requestUrl.pathname,
       host: req.headers.host,

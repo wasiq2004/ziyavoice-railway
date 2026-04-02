@@ -196,21 +196,27 @@ class MediaStreamHandler {
                 try {
                     let data;
 
+                    console.log(`📨 [${callId || 'unknown'}] Received WebSocket message:`, typeof message, Buffer.isBuffer(message) ? 'binary' : 'text');
+
                     // ✅ CRITICAL: Handle binary messages from Twilio
                     if (Buffer.isBuffer(message)) {
                         // Binary message - try to parse as JSON first
                         try {
                             const messageStr = message.toString('utf8');
                             data = JSON.parse(messageStr);
+                            console.log(`📨 [${callId || 'unknown'}] Parsed binary message as JSON:`, data.event);
                         } catch (e) {
                             // Not JSON - could be raw audio, ignore
+                            console.log(`📨 [${callId || 'unknown'}] Received binary audio data (${message.length} bytes)`);
                             return;
                         }
                     } else if (typeof message === 'string') {
                         // String message - parse as JSON
                         data = JSON.parse(message);
+                        console.log(`📨 [${callId || 'unknown'}] Parsed string message:`, data.event);
                     } else {
                         // Unknown message type
+                        console.log(`📨 [${callId || 'unknown'}] Unknown message type:`, typeof message);
                         return;
                     }
 
@@ -352,6 +358,15 @@ class MediaStreamHandler {
                         session.streamSid = data.start.streamSid;
                         session.isReady = true;
 
+                        console.log(`🎯 [${callId}] Session fully initialized:`, {
+                            agentId,
+                            voiceId: agentVoiceId,
+                            model: agentModel,
+                            greeting: greetingMessage,
+                            streamSid: session.streamSid,
+                            toolsCount: tools.length
+                        });
+
                         // ✅ Twilio keep-alive: Send silence immediately
                         if (session.isReady && session.streamSid) {
                             const silenceBuffer = Buffer.alloc(160, 0xFF);
@@ -377,22 +392,26 @@ class MediaStreamHandler {
                         // Send greeting
                         setTimeout(async () => {
                             try {
+                                console.log(`🎤 [${callId}] Starting greeting TTS synthesis: "${greetingMessage}"`);
                                 const audio = await this.synthesizeTTS(session.greetingMessage, session.agentVoiceId, session);
                                 if (audio && audio.length > 0) {
+                                    console.log(`🎵 [${callId}] Greeting TTS successful (${audio.length} bytes), sending to Twilio`);
                                     this.sendAudioToTwilio(session, audio);
                                 } else {
-                                    console.warn("⚠️  Greeting TTS produced empty audio");
+                                    console.warn(`⚠️ [${callId}] Greeting TTS produced empty audio`);
                                 }
                             } catch (err) {
-                                console.error("❌ Greeting error:", err);
+                                console.error(`❌ [${callId}] Greeting TTS error:`, err);
                                 // Send a fallback message
                                 try {
+                                    console.log(`🔄 [${callId}] Trying fallback greeting`);
                                     const fallbackAudio = await this.synthesizeTTS("Hello", session.agentVoiceId, session);
                                     if (fallbackAudio && fallbackAudio.length > 0) {
+                                        console.log(`🎵 [${callId}] Fallback greeting successful, sending to Twilio`);
                                         this.sendAudioToTwilio(session, fallbackAudio);
                                     }
                                 } catch (fallbackErr) {
-                                    console.error("❌ Fallback greeting error:", fallbackErr);
+                                    console.error(`❌ [${callId}] Fallback greeting error:`, fallbackErr);
                                 }
                             }
                         }, 800);
