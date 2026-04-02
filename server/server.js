@@ -88,24 +88,18 @@ server.on('upgrade', (req, socket, head) => {
   // Accept both /api/call and /api/call/.websocket (Twilio may append .websocket)
   const isValidCallPath = requestUrl.pathname === '/api/call' || requestUrl.pathname === '/api/call/.websocket';
   if (!isValidCallPath) {
-    console.log('⚠️  Non-call upgrade request ignored:', {
-      pathname: requestUrl.pathname,
-      host: req.headers.host,
-      method: req.method
+    console.log(`❌ WebSocket upgrade rejected: invalid path "${requestUrl.pathname}" (expected /api/call or /api/call/.websocket)`, {
+      method: req.method,
+      userAgent: req.headers['user-agent']?.substring(0, 50)
     });
+    socket.write('HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\nInvalid WebSocket path');
+    socket.destroy();
     return;
   }
 
-  console.log('🔄 WebSocket upgrade request for /api/call', {
-    timestamp: new Date().toISOString(),
-    clientIp,
-    headers: {
-      upgrade: req.headers.upgrade || 'MISSING',
-      connection: req.headers.connection || 'MISSING',
-      host: req.headers.host,
-      'sec-websocket-key': req.headers['sec-websocket-key'] ? 'PRESENT' : 'MISSING',
-      'user-agent': req.headers['user-agent']?.substring(0, 60)
-    }
+  console.log('� WebSocket upgrade request for /api/call', {
+    userAgent: req.headers['user-agent']?.substring(0, 50),
+    'sec-websocket-key': req.headers['sec-websocket-key'] ? 'present' : 'MISSING'
   });
 
   try {
@@ -4908,8 +4902,8 @@ app.post('/api/twilio/voice', async (req, res) => {
     // that does not forward WebSocket upgrades correctly.
     const actualCallId = callId || CallSid;
     const twilioWsBaseUrl = process.env.TWILIO_WS_BASE_URL || process.env.BACKEND_WS_BASE_URL || appUrl;
-    const normalizedTwilioWsBaseUrl = ensureHttpProtocol(twilioWsBaseUrl);
-    const streamUrl = buildBackendWsUrl('/api/call', normalizedTwilioWsBaseUrl);
+    // buildBackendWsUrl now extracts domain automatically, so pass just the path
+    const streamUrl = buildBackendWsUrl('/api/call', twilioWsBaseUrl);
     const streamStatusCallbackUrl =
       `${buildBackendUrl('/twilio/stream-status', appUrl)}?callId=${encodeURIComponent(actualCallId)}`;
     const streamFallbackUrl =
@@ -4917,7 +4911,7 @@ app.post('/api/twilio/voice', async (req, res) => {
 
     console.log('🔗 WebSocket Stream URL:', streamUrl);
     if (twilioWsBaseUrl !== appUrl) {
-      console.log('   Twilio WS base override:', normalizedTwilioWsBaseUrl);
+      console.log('   Twilio WS base override:', twilioWsBaseUrl);
     }
     console.log('   CallSid:', CallSid);
     console.log('   agentId:', agentId);

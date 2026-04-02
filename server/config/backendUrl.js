@@ -22,6 +22,21 @@ const ensureHttpProtocol = (url) => {
     return `https://${url}`;
 };
 
+// ✅ NEW: Extract domain+port from URL (strips path components like /api)
+const extractDomainFromUrl = (url) => {
+    if (!url) {
+        return url;
+    }
+    const ensured = ensureHttpProtocol(url);
+    try {
+        const urlObj = new URL(ensured);
+        return `${urlObj.protocol}//${urlObj.host}`;
+    } catch (e) {
+        console.error('Failed to parse URL:', ensured, e.message);
+        return ensured;
+    }
+};
+
 // ✅ FIXED: Accept optional appUrl parameter for WebSocket URL construction
 const buildBackendUrl = (path = '', appUrl = null) => {
     const baseUrl = appUrl ? normalizeBackendUrl(appUrl) : getBackendUrl();
@@ -39,14 +54,24 @@ const buildBackendUrl = (path = '', appUrl = null) => {
 };
 
 // ✅ FIXED: Accept optional appUrl parameter for WebSocket URL construction
+// IMPORTANT: For WebSocket URLs, we extract just the domain+port to avoid path duplication
 const buildBackendWsUrl = (path = '', appUrl = null) => {
-    const baseUrl = appUrl ? normalizeBackendUrl(appUrl) : getBackendUrl();
-    const httpUrl = ensureHttpProtocol(baseUrl);
-
-    if (!httpUrl) {
-        return httpUrl;
+    let baseUrl;
+    if (appUrl) {
+        // Extract domain from appUrl (removes /api path if present)
+        baseUrl = extractDomainFromUrl(appUrl);
+    } else {
+        // Use domain-only version of backend URL
+        baseUrl = extractDomainFromUrl(getBackendUrl());
     }
-    const wsUrl = httpUrl.replace(/^https:\/\//, 'wss://').replace(/^http:\/\//, 'ws://');
+
+    if (!baseUrl) {
+        return baseUrl;
+    }
+
+    // Convert http(s) to ws(s)
+    const wsUrl = baseUrl.replace(/^https:\/\//, 'wss://').replace(/^http:\/\//, 'ws://');
+    
     if (!path) {
         return wsUrl;
     }
@@ -58,6 +83,7 @@ module.exports = {
     getBackendUrl,
     normalizeBackendUrl,
     ensureHttpProtocol,
+    extractDomainFromUrl,
     buildBackendUrl,
     buildBackendWsUrl
 };
