@@ -311,9 +311,21 @@ console.log("Twilio Basic Service initialized");
 const FRONTEND_URL = process.env.FRONTEND_URL;
 
 const corsOptions = {
-  origin: [
-    FRONTEND_URL,
-  ],
+  origin: (origin, callback) => {
+    const allowed = [
+      FRONTEND_URL,
+      'https://ziyasuite.netlify.app',
+      'https://ziyasuite.com'
+    ];
+
+    if (!origin || allowed.includes(origin)) {
+      callback(null, true);
+    } else {
+      const err = new Error('CORS policy: origin not allowed');
+      err.status = 403;
+      callback(err, false);
+    }
+  },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"]
@@ -321,6 +333,9 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions));
+
+// explicitly support OPTIONS for login (preflight)
+app.options('/api/auth/login', cors(corsOptions), (req, res) => res.sendStatus(204));
 
 // Request logging for diagnostics
 app.use((req, res, next) => {
