@@ -2,7 +2,7 @@ const path = require('path');
 const fs = require('fs');
 
 // Determine which environment we're running in
-const DEFAULT_ENV = 'local';
+const DEFAULT_ENV = 'production';
 const APP_ENV = process.env.APP_ENV || DEFAULT_ENV;
 
 // Map environment names to .env file paths
