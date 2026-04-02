@@ -322,6 +322,15 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions));
 
+// Request logging for diagnostics
+app.use((req, res, next) => {
+  console.log(`[REQ] ${req.method} ${req.originalUrl} - origin: ${req.headers.origin || 'none'} - ip: ${req.ip}`);
+  res.on('finish', () => {
+    console.log(`[RESP] ${req.method} ${req.originalUrl} -> ${res.statusCode}`);
+  });
+  next();
+});
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
@@ -6846,3 +6855,10 @@ app.get('/api/websocket-test', (req, res) => {
     console.log(`Diagnostic endpoint: /api/websocket-test`);
     console.log(`🚀 === SERVER READY ===\n`);
   });
+
+// Global error handler for webhook/route crashes
+app.use((err, req, res, next) => {
+  console.error('[ERROR] Unhandled route exception:', err);
+  if (res.headersSent) return next(err);
+  res.status(500).json({ success: false, error: 'Internal server error' });
+});
