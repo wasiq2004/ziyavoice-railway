@@ -167,184 +167,37 @@ class MediaStreamHandler {
     async handleConnection(ws, req) {
         let callId = null;
         let agentId = null;
+        let userId = null;
         let session = null;
 
         try {
-            console.log(`📞 WebSocket connection initiated from handleConnection`);
+            console.log(`📞 [NEW] WebSocket connection from Twilio (awaiting start event)`);
 
-            // ✅ Extract parameters from URL immediately (this is the PRIMARY source)
-            const queryParams = require('url').parse(req.url, true).query;
-            callId = queryParams.callId;
-            agentId = queryParams.agentId;
-            const userId = queryParams.userId;
-            const contactId = queryParams.contactId;
-            const campaignId = queryParams.campaignId;
+            // ✅ DO NOT CLOSE THE CONNECTION - wait for start event from Twilio
+            let eventReceived = false;
 
-            console.log(`🔑 URL Parameters extracted:`, {
-                callId,
-                agentId,
-                userId,
-                contactId,
-                campaignId
-            });
-
-            // ✅ Validate minimum required parameters
-            if (!callId || !agentId || !userId) {
-                console.error(`❌ Missing required parameters:`, {
-                    callId: callId ? 'present' : 'MISSING',
-                    agentId: agentId ? 'present' : 'MISSING',
-                    userId: userId ? 'present' : 'MISSING'
-                });
-                ws.close(1008, 'Missing required parameters (callId, agentId, userId)');
-                return;
-            }
-
-            // ✅ Set up error handler FIRST before any other operations
+            // ✅ Set up error handler FIRST
             ws.on("error", (error) => {
-                // Ignore UTF-8 errors from binary frames (Twilio sends binary audio data)
-                if (error.code === 'WS_ERR_INVALID_UTF8' ||
-                    error.message?.includes('invalid UTF-8') ||
-                    error.message?.includes('Invalid WebSocket frame')) {
-                    // Normal - binary audio data, don't log
+                if (error.code === 'WS_ERR_INVALID_UTF8' || error.message?.includes('invalid UTF-8') || error.message?.includes('Invalid WebSocket frame')) {
+                    // Normal - binary audio, ignore
                     return;
                 }
-                console.error(`❌ [${callId}] WebSocket error:`, error.message);
+                console.error(`❌ [${callId || 'CONN'}] WebSocket error:`, error.message);
             });
 
-            // ✅ Now initialize the session IMMEDIATELY with URL parameters
-            // Load agent configuration
-            let agentPrompt = "You are a helpful AI assistant.";
-            let agentVoiceId = "21m00Tcm4TlvDq8ikWAM"; // Default voice
-            let agentModel = "gemini-2.0-flash"; // Default model
-            let greetingMessage = "Hello! How can I help you today?";
-            let tools = [];
-            let agent = null;
-
-            if (agentId) {
-                try {
-                    const AgentService = require('./agentService.js');
-                    const agentService = new AgentService(require('../config/database.js').default);
-
-                    console.log(`🔍 [${callId}] Fetching agent from database: userId=${userId}, agentId=${agentId}`);
-                    agent = await agentService.getAgentById(userId, agentId);
-
-                    if (agent) {
-                        console.log(`✅ [${callId}] Agent loaded: ${agent.name}`);
-
-                        agentPrompt = agent.identity || agentPrompt;
-
-                        // Process Tools
-                        if (agent.settings && agent.settings.tools && agent.settings.tools.length > 0) {
-                            tools = agent.settings.tools;
-                            const toolDescriptions = tools.map(tool =>
-                                `- ${tool.name}: ${tool.description} (Parameters: ${tool.parameters?.map(p => `${p.name} (${p.type})${p.required ? ' [required]' : ''}`).join(', ') || 'None'})`
-                            ).join('\n');
-
-                            agentPrompt += `\n\nAvailable Tools:\n${toolDescriptions}\n\nWhen you need to collect information from the user, ask for the required parameters. When all required information is collected, respond with a JSON object in the format: {"tool": "tool_name", "data": {"param1": "value1", "param2": "value2"}}. Do NOT add any other text before or after the JSON.`;
-                        }
-
-                        // ✅ Use the voice ID directly from database
-                        if (agent.voiceId) {
-                            agentVoiceId = agent.voiceId;
-                        }
-
-                        // ✅ Use the model directly from database
-                        if (agent.model) {
-                            agentModel = agent.model;
-                        }
-
-                        if (agent.settings?.greetingLine) {
-                            greetingMessage = agent.settings.greetingLine;
-                        }
-                    } else {
-                        console.error(`❌ [${callId}] Agent ${agentId} not found in database`);
-                        ws.close(1008, 'Agent not found');
-                        return;
-                    }
-                } catch (err) {
-                    console.error(`❌ [${callId}] Error loading agent:`, err.message);
-                    ws.close(1008, 'Failed to load agent configuration');
-                    return;
-                }
-            }
-
-            // Check user balance before starting call
-            if (userId && this.walletService) {
-                const balanceCheck = await this.walletService.checkBalanceForCall(userId, 0.10);
-                if (!balanceCheck.allowed) {
-                    console.error(`❌ [${callId}] Insufficient balance for user ${userId}`);
-                    ws.close(1008, balanceCheck.message);
-                    return;
-                }
-                console.log(`✅ [${callId}] Balance check passed: $${balanceCheck.balance.toFixed(4)}`);
-            }
-
-            // Map agent language to Sarvam language codes
-            const languageMap = {
-                'ENGLISH': 'en-IN', 'HINDI': 'hi-IN', 'TAMIL': 'ta-IN', 'TELUGU': 'te-IN',
-                'KANNADA': 'kn-IN', 'MALAYALAM': 'ml-IN', 'BENGALI': 'bn-IN', 'MARATHI': 'mr-IN',
-                'GUJARATI': 'gu-IN', 'PUNJABI': 'pa-IN'
-            };
-
-            const agentLanguage = agent?.language || 'ENGLISH';
-            const sarvamLanguage = languageMap[agentLanguage] || 'en-IN';
-
-            // ✅ CREATE SESSION IMMEDIATELY with URL parameters
-            session = this.createSession(callId, agentPrompt, agentVoiceId, ws, userId, agentId, agentModel, agent?.settings, contactId, campaignId);
-            session.tools = tools;
-            session.language = agentLanguage;
-            session.greetingMessage = greetingMessage;
-            session.isReady = true;
-
-            console.log(`🎉 [${callId}] Session initialized immediately on WebSocket connection:`, {
-                agent: agent?.name,
-                voiceId: agentVoiceId,
-                model: agentModel,
-                greeting: greetingMessage,
-                toolsCount: tools.length
-            });
-
-            // ✅ Send silence immediately to Twilio as keep-alive
-            const silenceBuffer = Buffer.alloc(160, 0xFF);
-            const base64Silence = silenceBuffer.toString('base64');
-            for (let i = 0; i < 5; i++) {
-                ws.send(JSON.stringify({
-                    event: "media",
-                    streamSid: session.streamSid || callId, // Use callId as fallback
-                    media: { payload: base64Silence }
-                }));
-            }
-
-            // ✅ Send greeting after a short delay
-            setTimeout(async () => {
-                try {
-                    console.log(`🎤 [${callId}] Starting greeting TTS: "${greetingMessage}"`);
-                    const audio = await this.synthesizeTTS(session.greetingMessage, session.agentVoiceId, session);
-                    if (audio && audio.length > 0) {
-                        console.log(`🎵 [${callId}] Greeting TTS synthesized (${audio.length} bytes), sending to Twilio`);
-                        this.sendAudioToTwilio(session, audio);
-                    }
-                } catch (err) {
-                    console.error(`❌ [${callId}] Greeting error:`, err.message);
-                }
-            }, 500);
-
-            // ✅ Now set up message handlers
+            // ✅ Main message handler
             ws.on("message", async (message) => {
                 try {
                     let data;
 
-                    // Handle binary audio data from Twilio
+                    // Try to parse as JSON (Twilio events)
                     if (Buffer.isBuffer(message)) {
                         try {
-                            const messageStr = message.toString('utf8');
-                            data = JSON.parse(messageStr);
-                            // If parsing succeeds, it's a JSON event
+                            data = JSON.parse(message.toString('utf8'));
                         } catch (e) {
-                            // Binary audio data - process as incoming audio
+                            // Binary data - handle as audio IF session exists
                             if (session?.isReady) {
-                                const audioBuffer = message;
-                                this.handleIncomingAudio(session, audioBuffer);
+                                this.handleIncomingAudio(session, message);
                             }
                             return;
                         }
@@ -352,45 +205,131 @@ class MediaStreamHandler {
                         try {
                             data = JSON.parse(message);
                         } catch (e) {
-                            console.error(`❌ [${callId}] Failed to parse message:`, e.message);
                             return;
                         }
-                    } else {
-                        return;
                     }
 
-                    // ✅ Handle Twilio JSON events
                     if (!data || !data.event) {
                         return;
                     }
 
+                    // ✅ CRITICAL: Handle "start" event - this is where Twilio sends parameters!
                     if (data.event === "start") {
-                        console.log(`▶️  [${callId}] Twilio 'start' event received (session already initialized)`);
-                        // Update streamSid if provided in start event
-                        if (data.start?.streamSid) {
-                            session.streamSid = data.start.streamSid;
-                            console.log(`📍 [${callId}] Updated streamSid: ${session.streamSid}`);
+                        if (eventReceived) return; // Ignore duplicate start events
+                        eventReceived = true;
+
+                        console.log(`🚀 [*] TWILIO START EVENT received`);
+
+                        // ✅ Extract parameters from Twilio's customParameters
+                        const customParams = data.start?.customParameters || {};
+                        callId = customParams.callId;
+                        agentId = customParams.agentId;
+                        userId = customParams.userId;
+                        const contactId = customParams.contactId;
+                        const campaignId = customParams.campaignId;
+
+                        console.log(`📋 [${callId}] Received parameters:`, {
+                            callId, agentId, userId, contactId, campaignId
+                        });
+
+                        // ✅ Validate we have minimum required parameters
+                        if (!callId || !agentId || !userId) {
+                            console.error(`❌ [${callId}] Missing required parameters from Twilio start event`);
+                            ws.close(1008, 'Missing required parameters');
+                            return;
                         }
 
-                    } else if (data.event === "connected") {
-                        console.log(`✅ [${callId}] Twilio 'connected' event received`);
+                        // ✅ Load agent configuration
+                        let agentPrompt = "You are a helpful AI voice assistant. Keep responses concise and natural for phone conversations.";
+                        let agentVoiceId = "21m00Tcm4TlvDq8ikWAM"; // Default ElevenLabs voice
+                        let agentModel = "gemini-2.0-flash"; // Default Gemini model
+                        let greetingMessage = "Hello! How can I help you today?";
+                        let tools = [];
 
-                    } else if (data.event === "media") {
-                        if (session?.isReady && data.media?.payload) {
+                        try {
+                            const AgentService = require('./agentService.js');
+                            const agentService = new AgentService(require('../config/database.js').default);
+
+                            console.log(`🔍 [${callId}] Loading agent ${agentId} for user ${userId}`);
+                            const agent = await agentService.getAgentById(userId, agentId);
+
+                            if (agent) {
+                                console.log(`✅ [${callId}] Agent loaded: "${agent.name}"`);
+                                agentPrompt = agent.identity || agentPrompt;
+                                agentVoiceId = agent.voiceId || agentVoiceId;
+                                agentModel = agent.model || agentModel;
+                                greetingMessage = agent.settings?.greetingLine || greetingMessage;
+
+                                if (agent.settings?.tools && agent.settings.tools.length > 0) {
+                                    tools = agent.settings.tools;
+                                    console.log(`🔧 [${callId}] ${tools.length} tools available`);
+                                }
+                            } else {
+                                console.warn(`⚠️  [${callId}] Agent not found, using defaults`);
+                            }
+                        } catch (err) {
+                            console.error(`⚠️  [${callId}] Error loading agent:`, err.message);
+                        }
+
+                        // ✅ Check wallet balance
+                        if (this.walletService) {
+                            try {
+                                const balanceCheck = await this.walletService.checkBalanceForCall(userId, 0.10);
+                                if (!balanceCheck.allowed) {
+                                    console.error(`❌ [${callId}] Insufficient balance`);
+                                    ws.close(1008, 'Insufficient balance');
+                                    return;
+                                }
+                                console.log(`✅ [${callId}] Balance OK: $${balanceCheck.balance.toFixed(2)}`);
+                            } catch (err) {
+                                console.error(`❌ [${callId}] Balance check error:`, err.message);
+                            }
+                        }
+
+                        // ✅ CREATE SESSION - session is NOW ready!
+                        session = this.createSession(
+                            callId, agentPrompt, agentVoiceId, ws, userId, agentId, agentModel,
+                            { tools }, contactId, campaignId
+                        );
+                        session.streamSid = data.start.streamSid;
+                        session.isReady = true;
+                        session.tools = tools;
+                        session.greetingMessage = greetingMessage;
+
+                        console.log(`🎉 [${callId}] SESSION INITIALIZED - Ready for real-time voice!`);
+
+                        // ✅ Send initial greeting
+                        setTimeout(async () => {
+                            try {
+                                console.log(`🎤 [${callId}] Synthesizing greeting: "${greetingMessage}"`);
+                                const greetingAudio = await this.synthesizeTTS(greetingMessage, agentVoiceId, session);
+                                if (greetingAudio && greetingAudio.length > 0) {
+                                    console.log(`📤 [${callId}] Sending greeting (${greetingAudio.length} bytes) to user`);
+                                    this.sendAudioToTwilio(session, greetingAudio);
+                                }
+                            } catch (err) {
+                                console.error(`❌ [${callId}] Greeting error:`, err.message);
+                            }
+                        }, 300);
+
+                    } else if (data.event === "media" && session?.isReady) {
+                        // ✅ Real-time audio from user - process immediately (no buffering)
+                        if (data.media?.payload) {
                             const audioBuffer = Buffer.from(data.media.payload, "base64");
                             this.handleIncomingAudio(session, audioBuffer);
                         }
 
+                    } else if (data.event === "connected") {
+                        console.log(`✅ [${callId}] Twilio stream connected`);
+
                     } else if (data.event === "stop") {
-                        console.log(`⏹️  [${callId}] Twilio 'stop' event received`);
-                        this.endSession(callId);
+                        console.log(`⏹️  [${callId}] Twilio stopped stream`);
+                        if (callId) this.endSession(callId);
 
                     } else if (data.event === "mark") {
-                        const markName = data.mark?.name;
-                        if (markName === session?.pendingMarkName) {
+                        if (data.mark?.name === session?.pendingMarkName) {
                             session.isSpeaking = false;
                             session.pendingMarkName = null;
-                            console.log(`✅ [${callId}] Audio playback confirmed by mark: ${markName}`);
                         }
                     }
 
@@ -399,10 +338,13 @@ class MediaStreamHandler {
                 }
             });
 
+            // ✅ Close handler
             ws.on("close", () => {
                 console.log(`🔌 [${callId}] WebSocket closed`);
-                this.endSession(callId);
+                if (callId) this.endSession(callId);
             });
+
+            console.log(`✅ WebSocket ready - waiting for Twilio "start" event...`);
 
         } catch (err) {
             console.error(`❌ handleConnection error:`, err.message);
