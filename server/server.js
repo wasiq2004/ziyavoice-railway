@@ -1161,7 +1161,7 @@ app.get('/api/voice-config-check', (req, res) => {
     const twilioWsBaseUrl = process.env.TWILIO_WS_BASE_URL || process.env.BACKEND_WS_BASE_URL || appUrl;
     const websocketUrl = !appUrl
       ? 'NOT SET'
-      : buildBackendWsUrl('/call', twilioWsBaseUrl);
+      : buildBackendWsUrl('/api/call', twilioWsBaseUrl);
 
     res.json({
       timestamp: new Date().toISOString(),
@@ -4909,7 +4909,7 @@ app.post('/api/twilio/voice', async (req, res) => {
     const actualCallId = callId || CallSid;
     const twilioWsBaseUrl = process.env.TWILIO_WS_BASE_URL || process.env.BACKEND_WS_BASE_URL || appUrl;
     const normalizedTwilioWsBaseUrl = ensureHttpProtocol(twilioWsBaseUrl);
-    const streamUrl = buildBackendWsUrl('/call', normalizedTwilioWsBaseUrl);
+    const streamUrl = buildBackendWsUrl('/api/call', normalizedTwilioWsBaseUrl);
     const streamStatusCallbackUrl =
       `${buildBackendUrl('/twilio/stream-status', appUrl)}?callId=${encodeURIComponent(actualCallId)}`;
     const streamFallbackUrl =
@@ -5002,15 +5002,15 @@ app.post('/api/twilio/stream-status', (req, res) => {
     Timestamp
   } = req.body || {};
 
-  console.log(' Twilio stream status callback:', {
-    callId,
-    CallSid,
-    StreamSid,
-    StreamName,
-    StreamEvent,
-    StreamError,
-    Timestamp
-  });
+  // Only log errors or significant events, not every status update
+  if (StreamError || StreamEvent === 'stream-stopped' || StreamEvent === 'stream-started') {
+    console.log('🔄 Twilio stream status:', {
+      callId,
+      StreamEvent,
+      StreamError: StreamError || 'none',
+      Timestamp
+    });
+  }
 
   res.sendStatus(204);
 });

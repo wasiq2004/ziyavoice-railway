@@ -203,17 +203,21 @@ class MediaStreamHandler {
                         // Binary message - try to parse as JSON first
                         try {
                             const messageStr = message.toString('utf8');
+                            console.log(`🔍 [${callId || 'unknown'}] Attempting to parse binary as JSON: "${messageStr.substring(0, 200)}..."`);
+                            console.log(`🔍 [${callId || 'unknown'}] Raw bytes (hex): ${message.toString('hex').substring(0, 100)}...`);
                             data = JSON.parse(messageStr);
-                            console.log(`📨 [${callId || 'unknown'}] Parsed binary message as JSON:`, data.event);
+                            console.log(`📨 [${callId || 'unknown'}] Successfully parsed binary message as JSON:`, data.event);
                         } catch (e) {
+                            console.log(`🔍 [${callId || 'unknown'}] Binary message is not JSON (likely audio), error: ${e.message}`);
+                            console.log(`🔍 [${callId || 'unknown'}] Raw bytes (hex): ${message.toString('hex').substring(0, 100)}...`);
                             // Not JSON - could be raw audio, ignore
-                            console.log(`📨 [${callId || 'unknown'}] Received binary audio data (${message.length} bytes)`);
                             return;
                         }
                     } else if (typeof message === 'string') {
                         // String message - parse as JSON
+                        console.log(`🔍 [${callId || 'unknown'}] Parsing string message: "${message.substring(0, 200)}..."`);
                         data = JSON.parse(message);
-                        console.log(`📨 [${callId || 'unknown'}] Parsed string message:`, data.event);
+                        console.log(`📨 [${callId || 'unknown'}] Successfully parsed string message:`, data.event);
                     } else {
                         // Unknown message type
                         console.log(`📨 [${callId || 'unknown'}] Unknown message type:`, typeof message);
