@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/public/assets/favico.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ziya Voice</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Quicksand:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary: {
+              DEFAULT: '#1a73e8', // Google Blue
+              dark: '#1557b0',
+              light: '#4285f4',
+            },
+            secondary: {
+              DEFAULT: '#e8f0fe', // Light blue background
+              dark: '#d2e3fc',
+            },
+            darkbg: {
+              DEFAULT: '#020617', // Slate 950 - Deepest background
+              surface: '#0f172a', // Slate 900 - Sidebar/Navbar/Cards
+              light: '#1e293b',   // Slate 800 - Lighter surfaces
+              lighter: '#334155', // Slate 700 - Even lighter surfaces/borders
+              card: '#1e293b',    // Consistent card background
+            },
+            lightbg: {
+              DEFAULT: '#f8f9fa', // Google Light Grey
+              dark: '#f1f5f9',    // Slate 100
+            },
+            surface: {
+              DEFAULT: '#ffffff',
+              dark: '#0f172a',    // Slate 900
+            }
+          },
+          fontFamily: {
+            sans: ['Roboto', 'sans-serif'],
+            heading: ['Quicksand', 'sans-serif'],
+            sidebar: ['Quicksand', 'sans-serif'],
+          },
+          boxShadow: {
+            'google': '0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15)',
+            'google-hover': '0 1px 3px 0 rgba(60,64,67,0.3), 0 4px 8px 3px rgba(60,64,67,0.15)',
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    /* Google Standard Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #dadce0;
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #bdc1c6;
+    }
+
+    .dark ::-webkit-scrollbar-thumb {
+      background: #5f6368;
+    }
+
+    .dark ::-webkit-scrollbar-thumb:hover {
+      background: #9aa0a6;
+    }
+
+    /* Refined Animations - Material Motion */
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+      }
+
+      to {
+        opacity: 1;
+      }
+    }
+
+    @keyframes slideInUp {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes slideInDown {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .animate-fade-in {
+      animation: fadeIn 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+    }
+
+    .animate-slide-up {
+      animation: slideInUp 0.4s cubic-bezier(0.4, 0.0, 0.2, 1);
+    }
+
+    .animate-slide-down {
+      animation: slideInDown 0.4s cubic-bezier(0.4, 0.0, 0.2, 1);
+    }
+
+    /* Material Interactive State */
+    .btn-animate {
+      transition: background-color 0.2s cubic-bezier(0.4, 0.0, 0.2, 1),
+        box-shadow 0.2s cubic-bezier(0.4, 0.0, 0.2, 1),
+        transform 0.1s linear;
+    }
+
+    .btn-animate:active {
+      transform: scale(0.98);
+    }
+
+    .card-animate {
+      transition: box-shadow 0.2s cubic-bezier(0.4, 0.0, 0.2, 1);
+    }
+
+    .card-animate:hover {
+      box-shadow: 0 4px 8px 3px rgba(60, 64, 67, 0.15), 0 1px 3px 0 rgba(60, 64, 67, 0.3);
+    }
+
+    .input-animate {
+      transition: border 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .input-animate:focus {
+      box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+      border-color: #1a73e8;
+    }
+
+    .page-transition {
+      animation: fadeIn 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+    }
+
+    .stagger-children>* {
+      animation: slideInUp 0.4s cubic-bezier(0.4, 0.0, 0.2, 1) backwards;
+    }
+
+    .stagger-children>*:nth-child(1) {
+      animation-delay: 0.05s;
+    }
+
+    .stagger-children>*:nth-child(2) {
+      animation-delay: 0.1s;
+    }
+
+    .stagger-children>*:nth-child(3) {
+      animation-delay: 0.15s;
+    }
+
+    .stagger-children>*:nth-child(4) {
+      animation-delay: 0.2s;
+    }
+
+    .stagger-children>*:nth-child(5) {
+      animation-delay: 0.25s;
+    }
+
+    /* Hide gradient orbs for cleaner look */
+    .gradient-bg-animated {
+      background: transparent;
+    }
+
+    .gradient-orb {
+      display: none;
+    }
+
+    .container-wrapper {
+      padding-left: 24px;
+      padding-right: 24px;
+      max-width: 1600px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    @media (max-width: 768px) {
+      .container-wrapper {
+        padding-left: 16px;
+        padding-right: 16px;
+      }
+    }
+
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+      font-family: 'Quicksand', sans-serif !important;
+    }
+  </style>
+</head>
+
+<body class="bg-lightbg dark:bg-darkbg">
+  <div id="root"></div>
+  <script type="module" src="/src/index.tsx"></script>
+</body>
+
+</html>
