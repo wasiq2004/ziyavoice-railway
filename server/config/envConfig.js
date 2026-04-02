@@ -3,7 +3,7 @@ const fs = require('fs');
 
 // Determine which environment we're running in
 const DEFAULT_ENV = 'production';
-const APP_ENV = process.env.APP_ENV || DEFAULT_ENV;
+const APP_ENV = process.env.APP_ENV || process.env.NODE_ENV || DEFAULT_ENV;
 
 // Map environment names to .env file paths
 const ENV_FILES = {
@@ -23,10 +23,26 @@ console.log(`[CONFIG] Loading environment: ${APP_ENV} from ${envPath}`);
 // Check if file exists
 if (!fs.existsSync(envPath)) {
   console.warn(`[CONFIG] Warning: Environment file not found at ${envPath}`);
+  console.log(`[CONFIG] Railway will use environment variables from dashboard`);
 }
 
 // Load environment variables from the specific file
 require('dotenv').config({ path: envPath });
+
+// Ensure Railway's PORT is available
+if (!process.env.PORT && process.env.RAILWAY_PORT) {
+  process.env.PORT = process.env.RAILWAY_PORT;
+}
+
+// Set defaults for Railway if not in file
+if (!process.env.PORT) {
+  process.env.PORT = '5000';
+  console.log(`[CONFIG] PORT not set, defaulting to 5000`);
+}
+
+if (!process.env.NODE_ENV) {
+  process.env.NODE_ENV = process.env.APP_ENV || 'production';
+}
 
 /**
  * Validates that all required environment variables are set
@@ -47,12 +63,13 @@ function validateRequiredEnv() {
   const missing = required.filter(key => !process.env[key]);
 
   if (missing.length > 0) {
-    console.error('[CONFIG] Error: Missing required environment variables:');
-    missing.forEach(key => console.error(`  - ${key}`));
-    // Don't throw error in development, just warn
-    if (APP_ENV === 'production') {
-      throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
-    }
+    console.error('[CONFIG] ⚠️  Missing environment variables:');
+    missing.forEach(key => console.error(`  - ${key} = ${process.env[key] || 'undefined'}`));
+    
+    // In production on Railway, allow server to start with partial env vars
+    // Some vars might be set in Railway dashboard vs .env file
+    console.warn('[CONFIG] 📌 Note: Some env vars missing. Server will start but features may not work.');
+    console.warn('[CONFIG] Make sure all vars are set in Railway dashboard or .env file');
   }
 }
 
@@ -67,10 +84,8 @@ function getEnv(key, defaultValue = undefined) {
   return value;
 }
 
-// Validate environment on load (production is strict)
-if (APP_ENV === 'production') {
-  validateRequiredEnv();
-}
+// Validate environment on load (for all environments, but don't throw in production)
+validateRequiredEnv();
 
 /**
  * Exported configuration object

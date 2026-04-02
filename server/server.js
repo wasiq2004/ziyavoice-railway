@@ -8,6 +8,14 @@ const nodeFetch = require('node-fetch');
 const expressWs = require('express-ws');
 const { WebSocketServer } = require('ws');
 const { v4: uuidv4 } = require('uuid');
+
+// Debug: Log environment startup
+console.log('[STARTUP] 🔧 Environment loaded:');
+console.log(`[STARTUP] NODE_ENV: ${process.env.NODE_ENV}`);
+console.log(`[STARTUP] APP_ENV: ${process.env.APP_ENV}`);
+console.log(`[STARTUP] PORT: ${process.env.PORT}`);
+console.log(`[STARTUP] BACKEND_BASE_URL: ${process.env.BACKEND_BASE_URL}`);
+console.log(`[STARTUP] MYSQL_HOST: ${process.env.MYSQL_HOST}`);
 const twilio = require('twilio');
 const fs = require('fs');
 // Import services (STATIC classes)
@@ -46,7 +54,7 @@ const passportInstance = configureGoogleAuth(mysqlPool);
 
 // Init server
 const app = express();
-const PORT = Number(process.env.PORT);
+const PORT = Number(process.env.PORT) || 5000;
 const server = require('http').createServer(app);
 const expressWsInstance = expressWs(app, server, {
   wsOptions: {
