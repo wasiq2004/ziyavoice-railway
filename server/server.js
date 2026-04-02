@@ -91,7 +91,16 @@ server.on('upgrade', (req, socket, head) => {
   // Only process Twilio media stream upgrade requests
   // Accept both /api/call and /api/call/.websocket (Twilio may append .websocket)
   const isValidCallPath = requestUrl.pathname === '/api/call' || requestUrl.pathname === '/api/call/.websocket';
+  if (isValidCallPath) {
+    console.log('ℹ️ Twilio WebSocket upgrade detected; deferring to express-ws route handling', {
+      path: requestUrl.pathname,
+      userAgent: req.headers['user-agent']?.substring(0, 50)
+    });
+    return;
+  }
+
   if (!isValidCallPath) {
+    return;
     console.log(`❌ WebSocket upgrade rejected: invalid path "${requestUrl.pathname}" (expected /api/call or /api/call/.websocket)`, {
       method: req.method,
       userAgent: req.headers['user-agent']?.substring(0, 50)
@@ -194,8 +203,43 @@ const agentService = new AgentService(mysqlPool);
 // MediaStreamHandler will be initialized later in the file (see line ~2700)
 let mediaStreamHandler;
 
+function attachTwilioMediaStreamConnection(ws, req, source = 'express-ws') {
+  const remoteIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+  const connectionId = require('crypto').randomBytes(6).toString('hex');
+
+  console.log(`🟢 [Conn: ${connectionId}] NEW WebSocket connection received`, {
+    timestamp: new Date().toISOString(),
+    remoteIp,
+    url: req.url,
+    source,
+    mediaStreamHandlerReady: !!mediaStreamHandler
+  });
+
+  if (!mediaStreamHandler) {
+    console.error(`🔴 [Conn: ${connectionId}] MediaStreamHandler NOT initialized - closing connection`, {
+      reason: 'Missing API keys or handler initialization failed',
+      suggestion: 'Check server logs during startup for initialization errors'
+    });
+    ws.close(1011, 'Service temporarily unavailable');
+    return;
+  }
+
+  try {
+    console.log(`✅ [Conn: ${connectionId}] Calling mediaStreamHandler.handleConnection()`);
+    mediaStreamHandler.handleConnection(ws, req);
+    console.log(`✅ [Conn: ${connectionId}] Connection successfully passed to mediaStreamHandler`);
+  } catch (error) {
+    console.error(`🔴 [Conn: ${connectionId}] Error in mediaStreamHandler.handleConnection():`, {
+      message: error.message,
+      stack: error.stack
+    });
+    ws.close(1011, 'Handler error');
+  }
+}
+
 // ✅ ENHANCED Connection Listener with Detailed Logging
 twilioCallWss.on('connection', (ws, req) => {
+  return attachTwilioMediaStreamConnection(ws, req, 'custom-wss');
   const remoteIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
   const connectionId = require('crypto').randomBytes(6).toString('hex');
   
@@ -5578,6 +5622,12 @@ if (process.env.SARVAM_API_KEY && process.env.GEMINI_API_KEY) {
 app.ws('/api/stt', function (ws, req) {
   elevenLabsStreamHandler.handleConnection(ws, req);
 })
+app.ws('/api/call', function (ws, req) {
+  attachTwilioMediaStreamConnection(ws, req, 'express-ws:/api/call');
+});
+app.ws('/api/call/.websocket', function (ws, req) {
+  attachTwilioMediaStreamConnection(ws, req, 'express-ws:/api/call/.websocket');
+});
 app.get('/api/call', (req, res) => {
   res.status(426).json({
     success: false,

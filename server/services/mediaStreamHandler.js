@@ -593,8 +593,10 @@ class MediaStreamHandler {
             });
 
             // ✅ Close handler
-            ws.on("close", () => {
+            ws.on("close", (code, reasonBuffer) => {
                 console.log(`🔌 [${callId}] WebSocket closed`);
+                const reason = reasonBuffer ? reasonBuffer.toString() : '';
+                console.log('Twilio WebSocket close details:', { callId, code, reason });
                 if (callId) this.endSession(callId);
             });
 
