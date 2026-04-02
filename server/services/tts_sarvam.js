@@ -206,6 +206,11 @@ async function generateSarvamTTS(text, options = {}) {
         } else {
             console.log(`[TTS] Twilio mode: requesting mulaw directly (NO CONVERSION NEEDED!)`);
         }
+        if (!options.skipTwilioConversion) {
+            outputCodec = 'wav';
+            sampleRate = 22050;
+            console.log(`[TTS] Override: requesting WAV and normalizing to µ-law 8kHz locally`);
+        }
 
         // Request audio from Sarvam with optimal format
         const requestBody = {

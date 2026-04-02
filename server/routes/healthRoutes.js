@@ -61,7 +61,12 @@ router.get('/live', (req, res) => {
  * For Kubernetes readiness probe
  */
 router.get('/ready', (req, res) => {
-  res.status(200).json({ status: 'ready' });
+  const startupChecks = req.app.locals?.startupChecks;
+  if (startupChecks && startupChecks.ready === false) {
+    return res.status(503).json({ status: 'not-ready', startupChecks });
+  }
+
+  res.status(200).json({ status: 'ready', startupChecks: startupChecks || null });
 });
 
 // Reset uptime (for testing)

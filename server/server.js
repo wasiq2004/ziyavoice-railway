@@ -57,6 +57,10 @@ const passportInstance = configureGoogleAuth(mysqlPool);
 
 // Init server
 const app = express();
+app.locals.startupChecks = {
+  ready: false,
+  checkedAt: new Date().toISOString()
+};
 const PORT = Number(process.env.PORT) || 5000;
 const server = require('http').createServer(app);
 const expressWsInstance = expressWs(app, server, {
@@ -6865,7 +6869,7 @@ app.get('/api/websocket-test', (req, res) => {
 });
 
   // Start server and bind to 0.0.0.0 for Railway
-  server.listen(PORT, '0.0.0.0', () => {
+  validateStartupDependencies().then(() => server.listen(PORT, '0.0.0.0', () => {
     console.log(`\n🚀 === SERVER STARTED ===`);
     console.log(`Server listening on port ${PORT}`);
     console.log(`Frontend URL: ${FRONTEND_URL}`);
@@ -6873,6 +6877,9 @@ app.get('/api/websocket-test', (req, res) => {
     console.log(`WebSocket endpoint: /api/call`);
     console.log(`Diagnostic endpoint: /api/websocket-test`);
     console.log(`🚀 === SERVER READY ===\n`);
+  })).catch((error) => {
+    console.error('[STARTUP] Fatal startup validation failure:', error);
+    process.exit(1);
   });
 
 // Global error handler for webhook/route crashes
@@ -6880,4 +6887,54 @@ app.use((err, req, res, next) => {
   console.error('[ERROR] Unhandled route exception:', err);
   if (res.headersSent) return next(err);
   res.status(500).json({ success: false, error: 'Internal server error' });
+});
+
+function getMissingCriticalStartupConfig() {
+  const required = [
+    'MYSQL_HOST',
+    'MYSQL_PORT',
+    'MYSQL_USER',
+    'MYSQL_PASSWORD',
+    'MYSQL_DATABASE',
+    'SESSION_SECRET',
+    'SARVAM_API_KEY',
+    'GEMINI_API_KEY'
+  ];
+
+  return required.filter((key) => !process.env[key]);
+}
+
+async function validateDatabaseConnection() {
+  const connection = await mysqlPool.getConnection();
+  try {
+    await connection.ping();
+  } finally {
+    connection.release();
+  }
+}
+
+async function validateStartupDependencies() {
+  const missingConfig = getMissingCriticalStartupConfig();
+  if (missingConfig.length > 0) {
+    throw new Error(`Missing critical startup configuration: ${missingConfig.join(', ')}`);
+  }
+
+  await validateDatabaseConnection();
+
+  if (!mediaStreamHandler) {
+    throw new Error('MediaStreamHandler failed to initialize; refusing to accept traffic');
+  }
+
+  app.locals.startupChecks = {
+    ready: true,
+    checkedAt: new Date().toISOString()
+  };
+}
+
+process.on('unhandledRejection', (error) => {
+  console.error('[PROCESS] Unhandled promise rejection:', error);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('[PROCESS] Uncaught exception:', error);
 });
