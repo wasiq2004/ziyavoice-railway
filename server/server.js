@@ -16,6 +16,9 @@ console.log(`[STARTUP] APP_ENV: ${process.env.APP_ENV}`);
 console.log(`[STARTUP] PORT: ${process.env.PORT}`);
 console.log(`[STARTUP] BACKEND_BASE_URL: ${process.env.BACKEND_BASE_URL}`);
 console.log(`[STARTUP] MYSQL_HOST: ${process.env.MYSQL_HOST}`);
+console.log(`[STARTUP] SARVAM_API_KEY: ${process.env.SARVAM_API_KEY ? 'SET' : 'NOT SET'}`);
+console.log(`[STARTUP] GEMINI_API_KEY: ${process.env.GEMINI_API_KEY ? 'SET' : 'NOT SET'}`);
+console.log(`[STARTUP] OPENAI_API_KEY: ${process.env.OPENAI_API_KEY ? 'SET' : 'NOT SET'}`);
 const twilio = require('twilio');
 const fs = require('fs');
 // Import services (STATIC classes)
@@ -5555,6 +5558,7 @@ app.post('/api/voices/elevenlabs/preview', async (req, res) => {
 });
 
 if (process.env.SARVAM_API_KEY && process.env.GEMINI_API_KEY) {
+  console.log('[INIT] ✅ Initializing MediaStreamHandler with SARVAM_API_KEY and GEMINI_API_KEY');
   mediaStreamHandler = new MediaStreamHandler(
     process.env.GEMINI_API_KEY,
     process.env.OPENAI_API_KEY,
@@ -5564,7 +5568,9 @@ if (process.env.SARVAM_API_KEY && process.env.GEMINI_API_KEY) {
   );
   console.log(" MediaStreamHandler initialized with Sarvam STT + Gemini + OpenAI + Cost Tracking");
 } else {
-  console.warn(" Voice call feature disabled” missing SARVAM_API_KEY or GEMINI_API_KEY");
+  console.warn("[INIT] ❌ MediaStreamHandler NOT initialized - missing required API keys");
+  console.warn(`[INIT] SARVAM_API_KEY: ${process.env.SARVAM_API_KEY ? 'present' : 'MISSING'}`);
+  console.warn(`[INIT] GEMINI_API_KEY: ${process.env.GEMINI_API_KEY ? 'present' : 'MISSING'}`);
 }
 // WebSocket endpoint for ElevenLabs STT
 app.ws('/api/stt', function (ws, req) {
