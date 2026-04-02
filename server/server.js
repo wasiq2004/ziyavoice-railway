@@ -4903,13 +4903,15 @@ app.post('/api/twilio/voice', async (req, res) => {
     const actualCallId = callId || CallSid;
     const twilioWsBaseUrl = process.env.TWILIO_WS_BASE_URL || process.env.BACKEND_WS_BASE_URL || appUrl;
     // buildBackendWsUrl now extracts domain automatically, so pass just the path
-    const streamUrl = buildBackendWsUrl('/api/call', twilioWsBaseUrl);
+    // ✅ CRITICAL: Include parameters in URL since Twilio Media Streams doesn't pass TwiML parameters in WebSocket
+    const baseStreamUrl = buildBackendWsUrl('/api/call', twilioWsBaseUrl);
+    const streamUrl = `${baseStreamUrl}?callId=${encodeURIComponent(actualCallId)}&agentId=${encodeURIComponent(agentId)}&userId=${encodeURIComponent(userId || '')}&contactId=${encodeURIComponent(req.query.contactId || '')}&campaignId=${encodeURIComponent(campaignId || '')}`;
     const streamStatusCallbackUrl =
       `${buildBackendUrl('/twilio/stream-status', appUrl)}?callId=${encodeURIComponent(actualCallId)}`;
     const streamFallbackUrl =
       `${buildBackendUrl('/twilio/stream-fallback', appUrl)}?callId=${encodeURIComponent(actualCallId)}`;
 
-    console.log('🔗 WebSocket Stream URL:', streamUrl);
+    console.log('🔗 WebSocket Stream URL:', streamUrl.substring(0, 120) + '...');
     if (twilioWsBaseUrl !== appUrl) {
       console.log('   Twilio WS base override:', twilioWsBaseUrl);
     }
